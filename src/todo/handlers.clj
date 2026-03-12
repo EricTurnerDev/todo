@@ -171,3 +171,12 @@
     (if (db/delete-category! ds (uid req) id)
       (json-resp 200 {:message "Deleted"})
       (json-resp 404 {:error "Category not found"}))))
+
+;; ─────────────────────────────────────────────────────────────────────────────
+;; Insights API
+;; ─────────────────────────────────────────────────────────────────────────────
+
+(defn insights
+  "GET /api/insights — returns aggregated task statistics for the current user."
+  [ds req]
+  (json-resp 200 (db/get-insights ds (uid req))))

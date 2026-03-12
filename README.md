@@ -14,6 +14,7 @@ A full-stack to-do application built with Clojure and PostgreSQL. Runs entirely 
 - **Filter** by category
 - **Show / hide paused** items
 - **Persistent UI state** — sort order, active category filter, and "show paused" are remembered per user across sessions
+- **Insights** — aggregated stats dashboard with completion streaks, charts (last 30 days, last 12 weeks), day-of-week patterns, and a per-category breakdown
 
 ## Tech stack
 
@@ -146,6 +147,14 @@ All endpoints require an authenticated session and return/accept `application/js
 | `DELETE` | `/api/categories/:id` | Delete a category (todos become uncategorized) |
 
 `color` is a palette index from **0–7** (blue, purple, orange, green, red, amber, sky, pink). Defaults to `0` if omitted.
+
+### Insights
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/insights` | Aggregated task statistics for the current user |
+
+Returns a JSON object with a `summary` (total/completed counts, current streak, longest streak, most productive day-of-week) and time-series arrays used by the dashboard charts.
 
 ## Database schema
 

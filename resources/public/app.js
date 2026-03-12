@@ -591,6 +591,496 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Page-level navigation  ("To-Dos" ↔ "Insights")
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Uses .nav-btn / .nav-btn--active — distinct from the inner .tab-btn so the
+// two handlers don't interfere with each other.
+
+document.querySelectorAll(".nav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("nav-btn--active"));
+    btn.classList.add("nav-btn--active");
+
+    const section = btn.dataset.section;
+    document.getElementById("todos-section").style.display      = section === "todos"     ? "" : "none";
+    document.getElementById("insights-section").style.display  = section === "insights" ? "" : "none";
+
+    if (section === "insights") loadInsights();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insights — data loading
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadInsights() {
+  const el = document.getElementById("insights-section");
+  el.innerHTML = '<p class="loading">Loading insights\u2026</p>';
+
+  try {
+    const res = await fetch("/api/insights");
+    if (handleUnauthorized(res)) return;
+    if (!res.ok) throw new Error("Server returned " + res.status);
+    const data = await res.json();
+    el.innerHTML = renderInsights(data);
+  } catch (err) {
+    el.innerHTML =
+      `<p class="empty" style="color:#ef4444">Failed to load insights: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insights — chart helpers (pure SVG, no dependencies)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CHART_W = 580;
+
+/**
+ * Vertical bar chart.
+ * data       — array of objects
+ * valKey     — key for the numeric value
+ * labelFn    — function(d, i) → tooltip label string
+ * color      — bar fill colour
+ * height     — chart height in px (bars only; does not include label area)
+ */
+function svgBars(data, { valKey = "count", labelFn, color = "#4f46e5", height = 100 } = {}) {
+  if (!data.length) return '<p class="chart-empty">No data yet.</p>';
+
+  const maxVal = Math.max(...data.map((d) => d[valKey]), 1);
+  const PAD = 1;
+  const bw  = Math.floor((CHART_W - PAD) / data.length);
+  const H   = height;
+
+  const bars = data.map((d, i) => {
+    const bh    = Math.max(Math.round((d[valKey] / maxVal) * (H - 4)), d[valKey] > 0 ? 1 : 0);
+    const x     = i * bw + PAD;
+    const y     = H - bh;
+    const label = labelFn ? labelFn(d, i) : String(d[valKey]);
+    return `<rect x="${x}" y="${y}" width="${Math.max(bw - 1, 1)}" height="${bh}"
+                  fill="${color}" rx="1"><title>${escapeHtml(label)}</title></rect>`;
+  }).join("");
+
+  return `<div class="chart-wrap">
+    <svg viewBox="0 0 ${CHART_W} ${H}" preserveAspectRatio="none"
+         style="width:100%;height:${H}px;display:block">${bars}</svg>
+  </div>`;
+}
+
+/**
+ * Grouped vertical bar chart for two series shown side-by-side.
+ * Each element of data must have keys aKey and bKey.
+ */
+function svgDualBars(data, { aKey, bKey, aColor = "#94a3b8", bColor = "#4f46e5",
+                              aLabel = "A", bLabel = "B", height = 100,
+                              labelFn } = {}) {
+  if (!data.length) return '<p class="chart-empty">No data yet.</p>';
+
+  const maxVal = Math.max(...data.map((d) => Math.max(d[aKey] || 0, d[bKey] || 0)), 1);
+  const groupW = Math.floor((CHART_W - 1) / data.length);
+  const bw     = Math.max(Math.floor(groupW / 2) - 1, 1);
+  const H      = height;
+
+  const bars = data.map((d, i) => {
+    const gx  = i * groupW + 1;
+    const bh1 = Math.max(Math.round(((d[aKey] || 0) / maxVal) * (H - 4)), (d[aKey] || 0) > 0 ? 1 : 0);
+    const bh2 = Math.max(Math.round(((d[bKey] || 0) / maxVal) * (H - 4)), (d[bKey] || 0) > 0 ? 1 : 0);
+    const tip = labelFn ? labelFn(d, i) : d.day || "";
+    return `
+      <rect x="${gx}" y="${H - bh1}" width="${bw}" height="${bh1}"
+            fill="${aColor}" rx="1"><title>${escapeHtml(tip)} — ${aLabel}: ${d[aKey] || 0}</title></rect>
+      <rect x="${gx + bw + 1}" y="${H - bh2}" width="${bw}" height="${bh2}"
+            fill="${bColor}" rx="1"><title>${escapeHtml(tip)} — ${bLabel}: ${d[bKey] || 0}</title></rect>`;
+  }).join("");
+
+  const legend = `
+    <div class="chart-legend">
+      <span class="legend-dot" style="background:${aColor}"></span>${escapeHtml(aLabel)}
+      <span class="legend-dot" style="background:${bColor}"></span>${escapeHtml(bLabel)}
+    </div>`;
+
+  return `<div class="chart-wrap">
+    <svg viewBox="0 0 ${CHART_W} ${H}" preserveAspectRatio="none"
+         style="width:100%;height:${H}px;display:block">${bars}</svg>
+  </div>${legend}`;
+}
+
+/**
+ * Horizontal bar chart — useful for labelled buckets.
+ * data    — array of { label, count } objects (already in desired display order)
+ * color   — single colour or array of colours
+ */
+function hbarChart(data, { color = "#4f46e5" } = {}) {
+  if (!data.length) return '<p class="chart-empty">No data yet.</p>';
+
+  const maxVal = Math.max(...data.map((d) => d.count), 1);
+  const colors = Array.isArray(color) ? color : data.map(() => color);
+
+  return data.map((d, i) => {
+    const pct = Math.round((d.count / maxVal) * 100);
+    return `<div class="hbar-row">
+      <span class="hbar-label">${escapeHtml(d.label)}</span>
+      <div class="hbar-track">
+        <div class="hbar-fill" style="width:${pct}%;background:${colors[i % colors.length]}"></div>
+      </div>
+      <span class="hbar-value">${d.count}</span>
+    </div>`;
+  }).join("");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insights — data helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Returns an array of YYYY-MM-DD strings for the last `n` days (today last). */
+function lastNDays(n) {
+  const days = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+/** Returns an array of YYYY-MM-DD week-start strings for the last `n` weeks. */
+function lastNWeekStarts(n) {
+  const weeks = [];
+  // Find the most recent Monday
+  const today = new Date();
+  const dow   = today.getDay();           // 0=Sun…6=Sat
+  const daysSinceMon = (dow + 6) % 7;    // days since last Monday
+  const latestMon = new Date(today);
+  latestMon.setDate(today.getDate() - daysSinceMon);
+
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(latestMon);
+    d.setDate(latestMon.getDate() - i * 7);
+    weeks.push(d.toISOString().slice(0, 10));
+  }
+  return weeks;
+}
+
+/**
+ * Fills sparse day data with zeros so every day in the range has an entry.
+ * serverData — array of { day: "YYYY-MM-DD", count: N }
+ * days       — array of "YYYY-MM-DD" strings (from lastNDays)
+ * Returns array of { day, count }.
+ */
+function fillDays(serverData, days) {
+  const map = {};
+  serverData.forEach((d) => { map[d.day] = d.count; });
+  return days.map((day) => ({ day, count: map[day] || 0 }));
+}
+
+/** Same as fillDays but for week_start key. */
+function fillWeeks(serverData, weekStarts) {
+  const map = {};
+  serverData.forEach((d) => { map[d.week_start] = d.count; });
+  return weekStarts.map((ws) => ({ week_start: ws, count: map[ws] || 0 }));
+}
+
+/**
+ * Joins two day-series (created, completed) into one array with both keys.
+ * Returns array of { day, created, completed }.
+ */
+function joinDaySeries(createdData, completedData, days) {
+  const cre = {};
+  const com = {};
+  createdData.forEach((d)   => { cre[d.day] = d.count; });
+  completedData.forEach((d) => { com[d.day] = d.count; });
+  return days.map((day) => ({ day, created: cre[day] || 0, completed: com[day] || 0 }));
+}
+
+/** Fills all 7 DOW slots (0–6) with zero for missing days. */
+function fillDow(serverData) {
+  const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const map = {};
+  serverData.forEach((d) => { map[d.dow] = d.count; });
+  return DOW_SHORT.map((name, i) => ({ label: name, count: map[i] || 0, dow: i }));
+}
+
+/** Maps bucket keys to human-readable labels in display order. */
+const HISTOGRAM_ORDER = [
+  { key: "same_day",    label: "Same day"   },
+  { key: "1_3_days",   label: "1–3 days"   },
+  { key: "4_7_days",   label: "4–7 days"   },
+  { key: "8_30_days",  label: "8–30 days"  },
+  { key: "30plus_days", label: "30+ days"  },
+];
+const HISTOGRAM_COLORS = ["#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe"];
+
+function fillHistogram(serverData) {
+  const map = {};
+  serverData.forEach((d) => { map[d.bucket] = d.count; });
+  return HISTOGRAM_ORDER.map((b) => ({ label: b.label, count: map[b.key] || 0 }))
+                        .filter((b) => b.count > 0);  // only show non-zero buckets
+}
+
+/** Short month-day label for a YYYY-MM-DD string. */
+function shortDate(iso) {
+  const [, m, d] = iso.split("-");
+  return `${parseInt(m)}/${parseInt(d)}`;
+}
+
+/** Short week label: "Feb 3" from a YYYY-MM-DD week-start. */
+function shortWeek(iso) {
+  const dt = new Date(iso + "T00:00:00");
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insights — insights generator
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function generateInsights(data) {
+  const insights = [];
+  const s = data.summary;
+
+  // Streak
+  if (s.current_streak >= 3) {
+    insights.push(`You're on a <strong>${s.current_streak}-day</strong> completion streak — keep it going!`);
+  }
+
+  // On-time completion rate (only meaningful with enough data)
+  if (s.tracked_with_due_count >= 5) {
+    const rate = Math.round((s.on_time_count / s.tracked_with_due_count) * 100);
+    if (rate >= 80) {
+      insights.push(`You finish <strong>${rate}%</strong> of due-dated tasks on time — great discipline.`);
+    } else if (rate < 50) {
+      insights.push(`Only <strong>${rate}%</strong> of due-dated tasks are completed on time. Consider adjusting your due dates or priorities.`);
+    } else {
+      insights.push(`You complete <strong>${rate}%</strong> of due-dated tasks on time.`);
+    }
+  }
+
+  // Busiest day of week
+  const dowFull = fillDow(data.completed_by_dow);
+  const totalDow = dowFull.reduce((a, b) => a + b.count, 0);
+  if (totalDow >= 7) {
+    const best = dowFull.reduce((a, b) => a.count > b.count ? a : b);
+    if (best.count > 0) {
+      insights.push(`You complete the most tasks on <strong>${DOW_NAMES[best.dow]}s</strong>.`);
+    }
+  }
+
+  // Average completion time
+  if (s.avg_completion_days != null) {
+    const d = parseFloat(s.avg_completion_days);
+    if (d < 1) {
+      insights.push(`Most completed tasks are finished the <strong>same day</strong> they're created.`);
+    } else {
+      insights.push(`On average, you complete tasks in <strong>${d.toFixed(1)} day${d === 1 ? "" : "s"}</strong> after creating them.`);
+    }
+  }
+
+  // Backlog trend (compare last 7 days avg vs prior 7 days avg)
+  if (data.backlog_per_day.length >= 14) {
+    const sizes   = data.backlog_per_day.map((d) => d.backlog_size);
+    const recent  = sizes.slice(-7).reduce((a, b) => a + b, 0) / 7;
+    const older   = sizes.slice(-14, -7).reduce((a, b) => a + b, 0) / 7;
+    if (recent > older * 1.15) {
+      insights.push(`Your backlog has <strong>grown</strong> over the last two weeks — you may be creating tasks faster than completing them.`);
+    } else if (recent < older * 0.85 && older > 0) {
+      insights.push(`Your backlog is <strong>shrinking</strong> — you're completing more than you're adding. Nice work!`);
+    }
+  }
+
+  // Overdue
+  if (s.overdue_count > 0) {
+    insights.push(`You have <strong>${s.overdue_count}</strong> overdue task${s.overdue_count === 1 ? "" : "s"} — consider reviewing them.`);
+  }
+
+  // Oldest open task
+  if (s.oldest_open_days != null && s.oldest_open_days >= 30) {
+    insights.push(`Your oldest open task has been waiting for <strong>${Math.round(s.oldest_open_days)}</strong> days.`);
+  }
+
+  // No completed tasks yet (new user)
+  if (s.completed_count === 0 && s.open_count > 0) {
+    insights.push(`You have ${s.open_count} open task${s.open_count === 1 ? "" : "s"}. Complete your first one to start seeing trends!`);
+  }
+
+  return insights;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insights — main render function
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderInsights(data) {
+  const s    = data.summary;
+  const days = lastNDays(30);
+  const wks  = lastNWeekStarts(12);
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function statCard(value, label, { muted = false, danger = false } = {}) {
+    const cls = ["stat-card",
+                 muted  ? "stat-card--muted"  : "",
+                 danger ? "stat-card--danger"  : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}">
+      <div class="stat-value">${escapeHtml(String(value))}</div>
+      <div class="stat-label">${escapeHtml(label)}</div>
+    </div>`;
+  }
+
+  function chartSection(title, body, note = "") {
+    return `<div class="chart-section card">
+      <h2 class="chart-title">${escapeHtml(title)}</h2>
+      ${note ? `<p class="chart-note">${note}</p>` : ""}
+      ${body}
+    </div>`;
+  }
+
+  // ── Summary cards ─────────────────────────────────────────────────────────
+
+  const onTimePct = s.tracked_with_due_count > 0
+    ? Math.round((s.on_time_count / s.tracked_with_due_count) * 100) + "%"
+    : "—";
+
+  const avgDays = s.avg_completion_days != null
+    ? parseFloat(s.avg_completion_days) < 1
+        ? "< 1 d"
+        : parseFloat(s.avg_completion_days).toFixed(1) + " d"
+    : "—";
+
+  const streakLabel = s.current_streak > 0 ? s.current_streak + " d" : "0";
+
+  const oldestLabel = s.oldest_open_days != null && s.open_count > 0
+    ? Math.round(s.oldest_open_days) + " d"
+    : "—";
+
+  const summaryHtml = `
+    <div class="stats-grid">
+      ${statCard(s.open_count,          "Open")}
+      ${statCard(s.completed_count,     "Completed", { muted: true })}
+      ${statCard(s.overdue_count,       "Overdue",   { danger: s.overdue_count > 0 })}
+      ${statCard(s.due_today_count,     "Due Today")}
+    </div>
+    <div class="stats-grid">
+      ${statCard(s.due_this_week_count, "Due This Week")}
+      ${statCard(onTimePct,             "On-Time Rate")}
+      ${statCard(avgDays,               "Avg. Completion")}
+      ${statCard(streakLabel,           "Streak")}
+    </div>
+    ${s.open_count > 0 ? `<p class="stat-footnote">Oldest open task: <strong>${oldestLabel} old</strong></p>` : ""}
+  `;
+
+  // ── Completed per day (last 30 days) ─────────────────────────────────────
+
+  const completedByDay = fillDays(data.completed_per_day, days);
+  const completedDayChart = svgBars(completedByDay, {
+    labelFn: (d) => `${shortDate(d.day)}: ${d.count} completed`,
+  });
+
+  // ── Created vs completed per day ─────────────────────────────────────────
+
+  const createdByDay  = fillDays(data.created_per_day, days);
+  const joinedDays    = joinDaySeries(createdByDay, completedByDay, days);
+  const dualChart     = svgDualBars(joinedDays, {
+    aKey: "created", bKey: "completed",
+    aLabel: "Created", bLabel: "Completed",
+    color: "#4f46e5",
+    labelFn: (d) => shortDate(d.day),
+  });
+
+  // ── Completed per week (last 12 weeks) ────────────────────────────────────
+
+  const completedByWeek = fillWeeks(data.completed_per_week, wks);
+  const weekChart = svgBars(completedByWeek, {
+    color: "#6366f1",
+    labelFn: (d) => `Wk of ${shortWeek(d.week_start)}: ${d.count} completed`,
+  });
+
+  // ── Backlog per day ───────────────────────────────────────────────────────
+
+  const backlogChart = svgBars(data.backlog_per_day, {
+    valKey:  "backlog_size",
+    color:   "#f59e0b",
+    labelFn: (d) => `${shortDate(d.day)}: ${d.backlog_size} open`,
+  });
+
+  // ── Completion-time histogram ─────────────────────────────────────────────
+
+  const histData  = fillHistogram(data.completion_histogram);
+  const histChart = hbarChart(histData, { color: HISTOGRAM_COLORS });
+
+  // ── Completions by day of week ────────────────────────────────────────────
+
+  const dowData  = fillDow(data.completed_by_dow);
+  const dowChart = svgBars(dowData, {
+    valKey:  "count",
+    color:   "#8b5cf6",
+    labelFn: (d) => `${DOW_NAMES[d.dow]}: ${d.count} completed`,
+  });
+
+  // ── Category table ────────────────────────────────────────────────────────
+
+  let categoryHtml = "";
+  if (data.by_category.length > 0) {
+    const rows = data.by_category.map((c) => {
+      const onTimePctCat = c.tracked_with_due > 0
+        ? Math.round((c.on_time_count / c.tracked_with_due) * 100) + "%"
+        : "—";
+      return `<tr>
+        <td><span class="cat-badge" style="${catStyle(c.color ?? 0)}">${escapeHtml(c.name)}</span></td>
+        <td class="tnum">${c.total}</td>
+        <td class="tnum">${c.completed_count}</td>
+        <td class="tnum ${c.overdue_count > 0 ? "text-danger" : ""}">${c.overdue_count}</td>
+        <td class="tnum">${onTimePctCat}</td>
+      </tr>`;
+    }).join("");
+
+    categoryHtml = chartSection("By Category", `
+      <table class="insights-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th class="tnum">Total</th>
+            <th class="tnum">Done</th>
+            <th class="tnum">Overdue</th>
+            <th class="tnum">On-Time %</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `);
+  }
+
+  // ── Insights ──────────────────────────────────────────────────────────────
+
+  const insightsList = generateInsights(data);
+  const insightsHtml = insightsList.length > 0
+    ? `<ul class="insight-list">${insightsList.map((i) => `<li>${i}</li>`).join("")}</ul>`
+    : `<p class="chart-empty">Complete more tasks to unlock insights.</p>`;
+
+  // ── Assemble ──────────────────────────────────────────────────────────────
+
+  const trackedNote =
+    "Charts only include tasks completed after the completion-tracking update was applied. " +
+    "Pre-existing completed tasks count in summary totals but not in time-series charts.";
+
+  return `<div class="insights">
+    ${summaryHtml}
+    ${chartSection("Completed — last 30 days", completedDayChart, trackedNote)}
+    ${chartSection("Created vs. Completed — last 30 days", dualChart)}
+    ${chartSection("Completed — last 12 weeks", weekChart)}
+    ${chartSection("Backlog size — last 30 days", backlogChart,
+        "Open tasks at the end of each day (includes all tasks regardless of when tracking started).")}
+    ${chartSection("How long tasks take to complete", histChart)}
+    ${chartSection("Completions by day of week", dowChart)}
+    ${categoryHtml}
+    <div class="chart-section card">
+      <h2 class="chart-title">Insights</h2>
+      ${insightsHtml}
+    </div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Bootstrap
 // ─────────────────────────────────────────────────────────────────────────────
 

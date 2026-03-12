@@ -114,63 +114,75 @@
 
       [:header.page-header
        [:h1 "To-Do List"]
-       [:div.header-user
-        [:span.header-email user-email]
-        [:form.logout-form {:method "POST" :action "/auth/logout"}
-         [:button.btn.btn-sm {:type "submit"} "Log Out"]]]]
+       [:div.header-right
+        ;; Page-level navigation: switches between the To-Dos view and Insights.
+        [:nav.page-nav
+         [:button.nav-btn.nav-btn--active {:data-section "todos"} "To-Dos"]
+         [:button.nav-btn {:data-section "insights"} "Insights"]]
+        [:div.header-user
+         [:span.header-email user-email]
+         [:form.logout-form {:method "POST" :action "/auth/logout"}
+          [:button.btn.btn-sm {:type "submit"} "Log Out"]]]]]
 
-      ;; ── Tabbed card: Add To-Do / Categories ──────────────────────────────
-      [:section.card
-       [:div.tab-strip
-        [:button.tab-btn.tab-btn--active {:data-tab "tab-add"} "Add a To-Do"]
-        [:button.tab-btn {:data-tab "tab-categories"} "Categories"]]
+      ;; ── Todos section (shown by default) ─────────────────────────────────
+      [:div#todos-section
 
-       [:div#tab-add.tab-panel
-        [:form#add-form {:novalidate true}
-         [:div.form-group
-          [:label {:for "new-title"} "Title"]
-          [:input#new-title {:type "text" :placeholder "What needs to be done?"
-                             :autocomplete "off" :required true}]]
-         [:div.form-group
-          [:label {:for "new-description"}
-           "Description " [:span.optional "(optional)"]]
-          [:textarea#new-description {:placeholder "Any extra details…" :rows 2}]]
-         (category-select "new-category")
-         [:div.form-row
+       ;; ── Tabbed card: Add To-Do / Categories ────────────────────────────
+       [:section.card
+        [:div.tab-strip
+         [:button.tab-btn.tab-btn--active {:data-tab "tab-add"} "Add a To-Do"]
+         [:button.tab-btn {:data-tab "tab-categories"} "Categories"]]
+
+        [:div#tab-add.tab-panel
+         [:form#add-form {:novalidate true}
           [:div.form-group
-           [:label {:for "new-due-at"} "Due date " [:span.optional "(optional)"]]
-           [:input#new-due-at {:type "date"}]]
-          (recurrence-select "new-")]
-         [:button.btn.btn-primary {:type "submit"} "Add To-Do"]]]
+           [:label {:for "new-title"} "Title"]
+           [:input#new-title {:type "text" :placeholder "What needs to be done?"
+                              :autocomplete "off" :required true}]]
+          [:div.form-group
+           [:label {:for "new-description"}
+            "Description " [:span.optional "(optional)"]]
+           [:textarea#new-description {:placeholder "Any extra details…" :rows 2}]]
+          (category-select "new-category")
+          [:div.form-row
+           [:div.form-group
+            [:label {:for "new-due-at"} "Due date " [:span.optional "(optional)"]]
+            [:input#new-due-at {:type "date"}]]
+           (recurrence-select "new-")]
+          [:button.btn.btn-primary {:type "submit"} "Add To-Do"]]]
 
-       [:div#tab-categories.tab-panel {:style "display:none"}
-        [:div#category-chips.category-chips]
-        [:form#add-category-form {:novalidate true}
-         [:div.inline-group
-          [:input#new-category-name
-           {:type "text" :placeholder "New category name…" :autocomplete "off"}]
-          [:button.btn {:type "submit"} "Add"]]
-         [:div#new-cat-color-swatches.color-swatch-row]]]]
+        [:div#tab-categories.tab-panel {:style "display:none"}
+         [:div#category-chips.category-chips]
+         [:form#add-category-form {:novalidate true}
+          [:div.inline-group
+           [:input#new-category-name
+            {:type "text" :placeholder "New category name…" :autocomplete "off"}]
+           [:button.btn {:type "submit"} "Add"]]
+          [:div#new-cat-color-swatches.color-swatch-row]]]]
 
-      ;; ── List header + category filter bar ────────────────────────────────
-      [:div.list-header
-       [:span.list-title "To-Dos"]
-       [:div.list-controls
-        [:label.show-inactive-label
-         [:input#show-inactive {:type "checkbox"}]
-         "Show paused"]
-        [:label.sort-label
-         [:span "Sort by"]
-         [:select#sort-select
-          [:option {:value "created_desc"} "Date added (newest)"]
-          [:option {:value "created_asc"}  "Date added (oldest)"]
-          [:option {:value "due_asc" :selected true} "Due date (soonest)"]
-          [:option {:value "due_desc"}     "Due date (latest)"]]]]]
+       ;; ── List header + category filter bar ──────────────────────────────
+       [:div.list-header
+        [:span.list-title "To-Dos"]
+        [:div.list-controls
+         [:label.show-inactive-label
+          [:input#show-inactive {:type "checkbox"}]
+          "Show paused"]
+         [:label.sort-label
+          [:span "Sort by"]
+          [:select#sort-select
+           [:option {:value "created_desc"} "Date added (newest)"]
+           [:option {:value "created_asc"}  "Date added (oldest)"]
+           [:option {:value "due_asc" :selected true} "Due date (soonest)"]
+           [:option {:value "due_desc"}     "Due date (latest)"]]]]]
 
-      ;; Filter buttons — hidden when no categories exist; populated by JS
-      [:div#category-filter-bar {:style "display:none"}]
+       ;; Filter buttons — hidden when no categories exist; populated by JS
+       [:div#category-filter-bar {:style "display:none"}]
 
-      [:section#todo-list [:p.loading "Loading…"]]
+       [:section#todo-list [:p.loading "Loading…"]]]
+
+      ;; ── Insights section (hidden by default; populated by JS on demand) ──
+      [:section#insights-section {:style "display:none"}
+       [:p.loading "Loading insights…"]]
 
       ;; ── Edit modal ────────────────────────────────────────────────────────
       [:div#edit-modal.modal-backdrop {:aria-hidden "true"}
