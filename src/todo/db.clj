@@ -169,13 +169,19 @@
 
 (defn get-all-categories [ds user-id]
   (jdbc/execute!
-   ds ["SELECT id, name, created_at FROM categories WHERE user_id = ? ORDER BY name" user-id]
+   ds ["SELECT id, name, color, created_at FROM categories WHERE user_id = ? ORDER BY name" user-id]
    opts))
 
-(defn create-category! [ds user-id name]
+(defn create-category! [ds user-id name color]
   (jdbc/execute-one!
-   ds ["INSERT INTO categories (user_id, name) VALUES (?, ?) RETURNING id, name, created_at"
-       user-id name]
+   ds ["INSERT INTO categories (user_id, name, color) VALUES (?, ?, ?) RETURNING id, name, color, created_at"
+       user-id name color]
+   opts))
+
+(defn update-category-color! [ds user-id id color]
+  (jdbc/execute-one!
+   ds ["UPDATE categories SET color = ? WHERE id = ? AND user_id = ? RETURNING id, name, color, created_at"
+       color id user-id]
    opts))
 
 (defn delete-category! [ds user-id id]

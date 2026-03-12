@@ -137,17 +137,34 @@
 (defn list-categories [ds req]
   (json-resp 200 (db/get-all-categories ds (uid req))))
 
+(defn- parse-color [v]
+  (let [n (cond (integer? v) (int v)
+                (string?  v) (some-> v str/trim not-empty Integer/parseInt)
+                :else        0)]
+    (max 0 (min 7 (or n 0)))))
+
 (defn create-category
-  "POST /api/categories  Body: {name}"
+  "POST /api/categories  Body: {name, color?}  color is a palette index 0–7."
   [ds req]
-  (let [name* (clean-str (:name (:body req)))]
+  (let [body  (:body req)
+        name* (clean-str (:name body))
+        color (parse-color (:color body))]
     (if-not name*
       (json-resp 400 {:error "Name is required"})
       (try
-        (json-resp 201 (db/create-category! ds (uid req) name*))
+        (json-resp 201 (db/create-category! ds (uid req) name* color))
         (catch Exception _
           ;; PostgreSQL unique constraint violation on (categories.name, categories.user_id)
           (json-resp 409 {:error (str "Category \"" name* "\" already exists")}))))))
+
+(defn update-category-color
+  "PATCH /api/categories/:id/color  Body: {color}  color is a palette index 0–7."
+  [ds req]
+  (let [id    (Integer/parseInt (get-in req [:params :id]))
+        color (parse-color (:color (:body req)))]
+    (if-let [cat (db/update-category-color! ds (uid req) id color)]
+      (json-resp 200 cat)
+      (json-resp 404 {:error "Category not found"}))))
 
 (defn delete-category [ds req]
   (let [id (Integer/parseInt (get-in req [:params :id]))]

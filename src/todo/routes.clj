@@ -48,9 +48,10 @@
       (DELETE "/api/todos/:id"         req (h/delete-todo   ds    req))
 
       ;; Category API (protected)
-      (GET    "/api/categories"     req (h/list-categories  ds req))
-      (POST   "/api/categories"     req (h/create-category  ds req))
-      (DELETE "/api/categories/:id" req (h/delete-category  ds req))
+      (GET    "/api/categories"            req (h/list-categories       ds req))
+      (POST   "/api/categories"            req (h/create-category       ds req))
+      (PATCH  "/api/categories/:id/color"  req (h/update-category-color ds req))
+      (DELETE "/api/categories/:id"        req (h/delete-category       ds req))
 
       ;; Catch-all
       (route/not-found "Not Found"))

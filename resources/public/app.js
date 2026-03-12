@@ -31,7 +31,7 @@ function loadPrefs() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Category colors  (8 distinct palette entries, assigned by id % 8)
+// Category colors  (8 distinct palette entries, chosen per-category)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CAT_PALETTE = [
@@ -45,9 +45,18 @@ const CAT_PALETTE = [
   { bg: "#fdf2f8", text: "#db2777", border: "#fbcfe8" },  // pink
 ];
 
-function catStyle(categoryId) {
-  const c = CAT_PALETTE[categoryId % CAT_PALETTE.length];
+const CAT_COLOR_NAMES = ["Blue", "Purple", "Orange", "Green", "Red", "Amber", "Sky", "Pink"];
+
+// Returns the inline style string for a given palette index (0–7).
+function catStyle(colorIdx) {
+  const c = CAT_PALETTE[colorIdx % CAT_PALETTE.length];
   return `background:${c.bg};color:${c.text};border:1px solid ${c.border}`;
+}
+
+// Looks up the stored color index for a category by ID.
+function catColor(categoryId) {
+  const cat = categories.find((c) => c.id === categoryId);
+  return cat ? (cat.color ?? 0) : 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,7 +138,11 @@ function renderCategoryChips() {
     return;
   }
   el.innerHTML = categories.map((c) => `
-    <span class="cat-chip" style="${catStyle(c.id)}">
+    <span class="cat-chip" style="${catStyle(c.color ?? 0)}">
+      <button class="cat-color-dot"
+              style="background:${CAT_PALETTE[c.color ?? 0].text}"
+              onclick="toggleColorPicker(${c.id}, this)"
+              title="Change color"></button>
       ${escapeHtml(c.name)}
       <button class="cat-chip-delete"
               onclick="deleteCategory(${c.id})"
@@ -156,7 +169,7 @@ function renderCategoryFilter() {
   const catBtns = categories.map((c) => {
     const active = activeCategoryId === c.id;
     return `<button class="cat-filter-btn${active ? " active" : ""}"
-                    style="${active ? catStyle(c.id) : ""}"
+                    style="${active ? catStyle(c.color ?? 0) : ""}"
                     onclick="setFilter(${c.id})">${escapeHtml(c.name)}</button>`;
   }).join("");
 
@@ -183,7 +196,91 @@ function setFilter(categoryId) {
   loadTodos();
 }
 
-// Add category form
+// ── New-category color selection ─────────────────────────────────────────────
+
+let newCategoryColor = 0;
+
+function renderNewCategoryColorPicker() {
+  const el = document.getElementById("new-cat-color-swatches");
+  el.innerHTML = CAT_PALETTE.map((c, i) =>
+    `<button type="button"
+             class="color-swatch-btn${i === newCategoryColor ? " selected" : ""}"
+             style="background:${c.text}"
+             onclick="selectNewCategoryColor(${i})"
+             title="${CAT_COLOR_NAMES[i]}"></button>`
+  ).join("");
+}
+
+function selectNewCategoryColor(idx) {
+  newCategoryColor = idx;
+  renderNewCategoryColorPicker();
+}
+
+// ── Floating color-picker popup (for editing existing chip colors) ─────────────
+
+let colorPickerTargetId = null;
+
+function toggleColorPicker(catId, btn) {
+  const existing = document.getElementById("color-picker-popup");
+  if (existing && colorPickerTargetId === catId) {
+    closeColorPicker();
+    return;
+  }
+  closeColorPicker();
+  colorPickerTargetId = catId;
+
+  const popup = document.createElement("div");
+  popup.id        = "color-picker-popup";
+  popup.className = "color-picker-popup";
+  popup.innerHTML = CAT_PALETTE.map((c, i) =>
+    `<button class="color-swatch-btn"
+             style="background:${c.text}"
+             onclick="applyColor(${catId}, ${i})"
+             title="${CAT_COLOR_NAMES[i]}"></button>`
+  ).join("");
+
+  const rect = btn.getBoundingClientRect();
+  popup.style.top  = (rect.bottom + window.scrollY + 4) + "px";
+  popup.style.left = rect.left + "px";
+  document.body.appendChild(popup);
+
+  setTimeout(() => document.addEventListener("click", closeColorPickerOnOutside), 0);
+}
+
+function closeColorPickerOnOutside(e) {
+  const popup = document.getElementById("color-picker-popup");
+  if (!popup) return;
+  if (!popup.contains(e.target)) {
+    closeColorPicker();
+  } else {
+    document.addEventListener("click", closeColorPickerOnOutside, { once: true });
+  }
+}
+
+function closeColorPicker() {
+  document.getElementById("color-picker-popup")?.remove();
+  colorPickerTargetId = null;
+  document.removeEventListener("click", closeColorPickerOnOutside);
+}
+
+async function applyColor(catId, colorIdx) {
+  closeColorPicker();
+  const res = await fetch(`/api/categories/${catId}/color`, {
+    method:  "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ color: colorIdx }),
+  });
+  if (handleUnauthorized(res)) return;
+  if (res.ok) {
+    await loadCategories();
+    loadTodos();
+  } else {
+    showError("Could not update color");
+  }
+}
+
+// ── Add category form ─────────────────────────────────────────────────────────
+
 document.getElementById("add-category-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = document.getElementById("new-category-name");
@@ -193,14 +290,16 @@ document.getElementById("add-category-form").addEventListener("submit", async (e
   const res = await fetch("/api/categories", {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ name }),
+    body:    JSON.stringify({ name, color: newCategoryColor }),
   });
 
   if (handleUnauthorized(res)) return;
   if (res.ok) {
-    input.value = "";
+    input.value      = "";
+    newCategoryColor = 0;
+    renderNewCategoryColorPicker();
     await loadCategories();   // refresh chips, filter bar, and selects
-    loadTodos();              // re-render in case colors changed
+    loadTodos();
   } else {
     const err = await res.json();
     showError(err.error || "Could not create category");
@@ -279,7 +378,7 @@ function renderTodoItem(todo) {
 
   let catBadge = "";
   if (todo.category_name) {
-    catBadge = `<span class="cat-badge" style="${catStyle(todo.category_id)}">${escapeHtml(todo.category_name)}</span>`;
+    catBadge = `<span class="cat-badge" style="${catStyle(catColor(todo.category_id))}">${escapeHtml(todo.category_name)}</span>`;
   }
 
   let pausedBadge = "";
@@ -497,6 +596,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 
 bindRecurrenceSelect("new-");
 bindRecurrenceSelect("edit-");
+renderNewCategoryColorPicker();
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Restore saved preferences before the first data load.

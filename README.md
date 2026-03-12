@@ -6,7 +6,7 @@ A full-stack to-do application built with Clojure and PostgreSQL. Runs entirely 
 
 - **Multi-user** — register with an email and password; each user's data is fully isolated
 - **Create, edit, and delete** to-dos with an optional description and due date
-- **Categories** — define your own, color-coded automatically
+- **Categories** — define your own with a chosen color; change the color any time
 - **Recurring to-dos** — daily, weekly, monthly, yearly, or every N days; checking one off advances its due date in place instead of creating a new row
 - **Pause / resume** recurring to-dos (e.g. seasonal tasks like mowing the lawn)
 - **Last-done tracking** — recurring items show when they were last completed
@@ -54,14 +54,11 @@ docker compose up --build
 
 ## Connecting to the database directly
 
-The PostgreSQL port is exposed on **5433** to avoid conflicts with a local install:
+PostgreSQL is not exposed to the host. To connect, use `docker compose exec`:
 
 ```bash
-psql -h localhost -p 5433 -U todo -d todo
-# password: todo
+docker compose exec db psql -U todo -d todo
 ```
-
-Or point DBeaver / TablePlus / DataGrip at `localhost:5433`, database `todo`, user `todo`, password `todo`.
 
 ## Project layout
 
@@ -144,8 +141,11 @@ All endpoints require an authenticated session and return/accept `application/js
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/categories` | List the current user's categories |
-| `POST` | `/api/categories` | Create a category (`{name}`) |
+| `POST` | `/api/categories` | Create a category (`{name, color?}`) |
+| `PATCH` | `/api/categories/:id/color` | Update a category's color (`{color}`) |
 | `DELETE` | `/api/categories/:id` | Delete a category (todos become uncategorized) |
+
+`color` is a palette index from **0–7** (blue, purple, orange, green, red, amber, sky, pink). Defaults to `0` if omitted.
 
 ## Database schema
 
@@ -161,6 +161,7 @@ CREATE TABLE categories (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name       VARCHAR(100) NOT NULL,
+  color      SMALLINT NOT NULL DEFAULT 0,  -- palette index 0–7
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (name, user_id)
 );

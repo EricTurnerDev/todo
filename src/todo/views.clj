@@ -149,7 +149,8 @@
          [:div.inline-group
           [:input#new-category-name
            {:type "text" :placeholder "New category name…" :autocomplete "off"}]
-          [:button.btn {:type "submit"} "Add"]]]]]
+          [:button.btn {:type "submit"} "Add"]]
+         [:div#new-cat-color-swatches.color-swatch-row]]]]
 
       ;; ── List header + category filter bar ────────────────────────────────
       [:div.list-header

@@ -510,6 +510,53 @@ textarea { resize: vertical; }
 }
 .cat-chip-delete:hover { opacity: 1; }
 
+/* Small colored circle inside a chip — click to open color picker */
+.cat-color-dot {
+  width: .625rem;
+  height: .625rem;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  opacity: .75;
+  transition: opacity .1s, transform .1s;
+}
+.cat-color-dot:hover { opacity: 1; transform: scale(1.25); }
+
+/* Row of color swatches (used in add form and in the floating popup) */
+.color-swatch-row {
+  display: flex;
+  gap: .35rem;
+  margin-top: .4rem;
+}
+
+/* Individual swatch button */
+.color-swatch-btn {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform .1s, border-color .1s;
+}
+.color-swatch-btn:hover   { transform: scale(1.2); }
+.color-swatch-btn.selected { border-color: var(--color-text); }
+
+/* Floating color-picker popup */
+.color-picker-popup {
+  position: absolute;
+  z-index: 1000;
+  display: flex;
+  gap: .35rem;
+  padding: .4rem .5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: .5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Category filter bar (above the todo list)
    ───────────────────────────────────────────────────────────────────────────── */

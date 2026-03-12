@@ -7,10 +7,6 @@ services:
       POSTGRES_DB:       todo
       POSTGRES_USER:     todo
       POSTGRES_PASSWORD: todo
-    ports:
-      # Expose to localhost so you can connect with psql / DBeaver during dev.
-      # Host port 5433 avoids conflicts with a local PostgreSQL on 5432.
-      - "5433:5432"
     volumes:
       # Named volume keeps data between `docker compose down` / `up` cycles.
       # Use `docker compose down -v` to wipe it and start fresh.
