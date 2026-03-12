@@ -178,6 +178,7 @@
        ;; Filter buttons — hidden when no categories exist; populated by JS
        [:div#category-filter-bar {:style "display:none"}]
 
+       [:div#encouragement-banner {:style "display:none"}]
        [:section#todo-list [:p.loading "Loading…"]]]
 
       ;; ── Insights section (hidden by default; populated by JS on demand) ──

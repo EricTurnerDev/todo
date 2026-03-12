@@ -322,6 +322,60 @@ async function deleteCategory(id) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Encouragement banner — shown when overdue tasks are detected
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ENCOURAGEMENT_QUOTES = [
+  { text: "The secret of getting ahead is getting started.",                                       attr: "Mark Twain" },
+  { text: "You don't have to be great to start, but you have to start to be great.",               attr: "Zig Ziglar" },
+  { text: "A year from now you may wish you had started today.",                                   attr: "Karen Lamb" },
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.",          attr: "Chinese Proverb" },
+  { text: "It always seems impossible until it's done.",                                           attr: "Nelson Mandela" },
+  { text: "Start where you are. Use what you have. Do what you can.",                              attr: "Arthur Ashe" },
+  { text: "The way to get started is to quit talking and begin doing.",                            attr: "Walt Disney" },
+  { text: "You don't have to see the whole staircase, just take the first step.",                  attr: "Martin Luther King Jr." },
+  { text: "Small deeds done are better than great deeds planned.",                                 attr: "Peter Marshall" },
+  { text: "Done is better than perfect.",                                                          attr: "Sheryl Sandberg" },
+  { text: "Do it now. Sometimes \u2018later\u2019 becomes \u2018never\u2019.",                     attr: null },
+  { text: "Action is the antidote to despair.",                                                    attr: "Joan Baez" },
+];
+
+let encouragementDismissed = false;
+
+function maybeShowEncouragement() {
+  const banner = document.getElementById("encouragement-banner");
+  if (encouragementDismissed) { banner.style.display = "none"; return; }
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const overdue = todos.filter((t) => {
+    if (!t.due_at || t.completed || !t.active) return false;
+    const [y, m, d] = t.due_at.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d) < today;
+  });
+
+  if (overdue.length === 0) { banner.style.display = "none"; return; }
+
+  const q        = ENCOURAGEMENT_QUOTES[Math.floor(Math.random() * ENCOURAGEMENT_QUOTES.length)];
+  const count    = overdue.length;
+  const taskWord = count === 1 ? "task" : "tasks";
+  const cite     = q.attr ? ` <cite>\u2014 ${escapeHtml(q.attr)}</cite>` : "";
+
+  banner.innerHTML = `
+    <div class="encouragement-body">
+      <p class="encouragement-nudge">You have ${count} overdue ${taskWord} \u2014 here\u2019s some motivation:</p>
+      <blockquote class="encouragement-quote">\u201c${escapeHtml(q.text)}\u201d${cite}</blockquote>
+    </div>
+    <button class="encouragement-close" onclick="dismissEncouragement()" aria-label="Dismiss">&times;</button>
+  `;
+  banner.style.display = "";
+}
+
+function dismissEncouragement() {
+  encouragementDismissed = true;
+  document.getElementById("encouragement-banner").style.display = "none";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Todos — load and render
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -351,6 +405,7 @@ function renderTodos() {
   list.innerHTML = todos.length === 0
     ? '<p class="empty">No to-dos here — add one above!</p>'
     : todos.map(renderTodoItem).join("");
+  maybeShowEncouragement();
 }
 
 function renderTodoItem(todo) {
