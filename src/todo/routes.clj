@@ -1,0 +1,69 @@
+(ns todo.routes
+  "Assembles all routes and the Ring middleware stack into the final app handler.
+
+   Middleware is applied inside-out with `->`:
+     (-> handler A B C)  ≡  C wraps B wraps A wraps handler
+
+   For an incoming request the order is:  C → B → A → handler
+   For an outgoing response the order is: handler → A → B → C
+
+   Stack (outermost → innermost):
+     wrap-defaults      — params, session, security headers, static files
+     wrap-json-body     — parses application/json request bodies
+     routes             — Compojure route matching → handler functions"
+  (:require [compojure.core         :refer [routes GET POST PUT DELETE PATCH]]
+            [compojure.route        :as route]
+            [ring.middleware.json   :as json-mw]
+            [ring.middleware.defaults :as defaults]
+            [todo.db                :as db]
+            [todo.handlers          :as h]))
+
+(defn create-app
+  "Builds and returns the Ring application.
+   Creates a HikariCP connection pool once; all handlers share it."
+  [db-url]
+  (let [ds (db/create-pool db-url)]
+    (->
+     ;; ── Route definitions ───────────────────────────────────────────────────
+     (routes
+      ;; HTML page
+      (GET  "/"                        req (h/index-page          req))
+
+      ;; JSON API
+      (GET  "/api/todos"               req (h/list-todos    ds    req))
+      (GET  "/api/todos/:id"           req (h/get-todo      ds    req))
+      (POST "/api/todos"               req (h/create-todo   ds    req))
+      (PUT  "/api/todos/:id"           req (h/update-todo   ds    req))
+      (PATCH "/api/todos/:id/toggle"   req (h/toggle-todo      ds req))
+      (PATCH "/api/todos/:id/active"   req (h/set-todo-active  ds req))
+      (DELETE "/api/todos/:id"         req (h/delete-todo   ds    req))
+
+      ;; Category API
+      (GET    "/api/categories"     req (h/list-categories  ds req))
+      (POST   "/api/categories"     req (h/create-category  ds req))
+      (DELETE "/api/categories/:id" req (h/delete-category  ds req))
+
+      ;; Catch-all
+      (route/not-found "Not Found"))
+
+     ;; ── Middleware ──────────────────────────────────────────────────────────
+
+     ;; Parse application/json bodies into Clojure maps with keyword keys.
+     ;; :fallthrough? true passes requests through unchanged if the body is
+     ;; not JSON (e.g. GET requests, the HTML page request).
+     (json-mw/wrap-json-body {:keywords? true :fallthrough? true})
+
+     ;; ring-defaults/site-defaults includes:
+     ;;   • wrap-params         – parses query-string and form params
+     ;;   • wrap-keyword-params – keywordises param names
+     ;;   • wrap-resource       – serves static files from resources/public/
+     ;;                           at the root URL path (/style.css, /app.js)
+     ;;   • wrap-content-type   – sets Content-Type headers for static files
+     ;;   • wrap-session        – cookie-backed session store
+     ;;   • security headers    – X-Frame-Options, X-XSS-Protection, etc.
+     ;;
+     ;; Anti-forgery (CSRF) is disabled because the frontend uses JSON API
+     ;; calls, not HTML form posts.  If you add server-side forms later,
+     ;; re-enable this and add the CSRF token to your forms.
+     (defaults/wrap-defaults
+      (assoc-in defaults/site-defaults [:security :anti-forgery] false)))))

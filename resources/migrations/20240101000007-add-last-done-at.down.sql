@@ -1,0 +1,1 @@
+ALTER TABLE todos DROP COLUMN IF EXISTS last_done_at;

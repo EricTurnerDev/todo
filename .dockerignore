@@ -1,0 +1,9 @@
+# Don't send compiled output or VCS history to the Docker build daemon.
+# This keeps the build context small and prevents stale artifacts.
+target/
+.git/
+.gitignore
+.clj-kondo/
+.lsp/
+.calva/
+*.md

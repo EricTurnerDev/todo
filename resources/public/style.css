@@ -1,0 +1,505 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Variables — change these to retheme the whole app
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --color-bg:          #f0f2f5;
+  --color-surface:     #ffffff;
+  --color-border:      #e2e8f0;
+  --color-text:        #1e293b;
+  --color-text-muted:  #94a3b8;
+  --color-primary:     #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-danger:      #ef4444;
+  --color-danger-bg:   #fef2f2;
+  --color-danger-hover: #fee2e2;
+  --color-done-text:   #94a3b8;
+  --radius:            8px;
+  --shadow:            0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-lg:         0 10px 25px rgba(0,0,0,.12);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Reset
+   ───────────────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base
+   ───────────────────────────────────────────────────────────────────────────── */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Layout
+   ───────────────────────────────────────────────────────────────────────────── */
+.container {
+  max-width: 680px;
+  margin: 2.5rem auto;
+  padding: 0 1rem;
+}
+
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -.025em;
+  color: var(--color-text);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Card
+   ───────────────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 1rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Form elements
+   ───────────────────────────────────────────────────────────────────────────── */
+.form-group {
+  margin-bottom: .875rem;
+}
+
+label {
+  display: block;
+  font-size: .875rem;
+  font-weight: 500;
+  margin-bottom: .375rem;
+}
+
+.optional {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, .15);
+}
+
+textarea { resize: vertical; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Buttons
+   ───────────────────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  padding: .5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: .875rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  background: var(--color-border);
+  color: var(--color-text);
+}
+.btn:hover { background: #cbd5e1; }
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--color-primary-hover); }
+
+.btn-sm { padding: .3rem .65rem; font-size: .8125rem; }
+
+.btn-edit {
+  background: #f8fafc;
+  color: #475569;
+  border-color: var(--color-border);
+}
+.btn-edit:hover { background: #f1f5f9; }
+
+.btn-delete {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: #fecaca;
+}
+.btn-delete:hover { background: var(--color-danger-hover); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   To-do list
+   ───────────────────────────────────────────────────────────────────────────── */
+#todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: .625rem;
+}
+
+/* ── List header with sort control ─────────────────────────────────────────── */
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .625rem;
+}
+
+.list-title {
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* Groups the sort select and show-paused toggle on the right side */
+.list-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.show-inactive-label {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .8125rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.show-inactive-label input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.sort-label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .8125rem;
+  color: var(--color-text-muted);
+}
+
+.sort-label select {
+  padding: .25rem .5rem;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: .8125rem;
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+/* ── Form layout helpers ────────────────────────────────────────────────────── */
+
+/* Side-by-side fields (due date + recurrence) */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1rem;
+}
+
+/* Number input + "days" suffix on one line */
+.inline-group {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.inline-group input {
+  width: 5rem;
+}
+
+.input-suffix {
+  font-size: .875rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.loading,
+.empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--color-text-muted);
+  font-size: .9375rem;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   To-do item
+   ───────────────────────────────────────────────────────────────────────────── */
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: .875rem 1.125rem;
+  box-shadow: var(--shadow);
+  transition: opacity .2s;
+}
+
+.todo-item.completed { opacity: .55; }
+.todo-item.completed .todo-title { text-decoration: line-through; color: var(--color-done-text); }
+
+.todo-item.paused { opacity: .45; }
+.todo-item.paused .todo-check input { cursor: not-allowed; }
+
+/* Checkbox */
+.todo-check {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.todo-check input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* Text body */
+.todo-body {
+  flex: 1;
+  min-width: 0;         /* prevents text from blowing out the flex container */
+}
+
+.todo-title {
+  font-size: 1rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.todo-desc {
+  font-size: .875rem;
+  color: #64748b;
+  margin-top: .125rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.todo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  font-size: .75rem;
+  color: var(--color-text-muted);
+  margin-top: .25rem;
+}
+
+.due-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 500;
+  background: #eff6ff;
+  color: #3b82f6;
+  border: 1px solid #bfdbfe;
+}
+
+.due-badge.overdue {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: #fecaca;
+}
+
+.paused-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.recurrence-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 500;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+/* Category badge on todo items — color applied via inline style from JS */
+.cat-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .1rem .5rem;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 600;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Category management card
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: .875rem;
+  min-height: 1.5rem;
+}
+
+.no-categories {
+  font-size: .875rem;
+  color: var(--color-text-muted);
+}
+
+/* Individual chip in the management card */
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .6rem;
+  border-radius: 999px;
+  font-size: .8125rem;
+  font-weight: 500;
+  /* color/background/border applied inline from JS */
+}
+
+.cat-chip-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .9rem;
+  line-height: 1;
+  padding: 0;
+  opacity: .6;
+  color: inherit;
+}
+.cat-chip-delete:hover { opacity: 1; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Category filter bar (above the todo list)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#category-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+  margin-bottom: .75rem;
+}
+
+.cat-filter-btn {
+  padding: .25rem .75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: .8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.cat-filter-btn:hover { background: #f1f5f9; color: var(--color-text); }
+
+/* Active filter button — color applied inline via JS for category buttons;
+   the "All" button uses the primary color. */
+.cat-filter-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+/* Action buttons */
+.todo-actions {
+  display: flex;
+  gap: .375rem;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Edit modal
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Backdrop — hidden by default; flex-centred when .open is added by JS */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .45);
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+.modal-backdrop.open { display: flex; }
+
+/* Dialog panel */
+.modal-dialog {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 2rem;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-dialog h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  color: var(--color-text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.modal-footer {
+  display: flex;
+  gap: .625rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}

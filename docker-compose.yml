@@ -1,0 +1,41 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB:       todo
+      POSTGRES_USER:     todo
+      POSTGRES_PASSWORD: todo
+    ports:
+      # Expose to localhost so you can connect with psql / DBeaver during dev.
+      # Host port 5433 avoids conflicts with a local PostgreSQL on 5432.
+      - "5433:5432"
+    volumes:
+      # Named volume keeps data between `docker compose down` / `up` cycles.
+      # Use `docker compose down -v` to wipe it and start fresh.
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready exits 0 only when PostgreSQL is accepting connections.
+      test: ["CMD-SHELL", "pg_isready -U todo -d todo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Application ─────────────────────────────────────────────────────────────
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # The app reads these two variables at startup.
+      DATABASE_URL: jdbc:postgresql://db:5432/todo?user=todo&password=todo
+      PORT: 3000
+    depends_on:
+      db:
+        # Docker will not start `app` until the db healthcheck passes.
+        # The app also has its own retry loop as a belt-and-suspenders measure.
+        condition: service_healthy
+
+volumes:
+  postgres_data:
