@@ -44,6 +44,9 @@ body {
 }
 
 .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 1.5rem;
 }
 
@@ -53,6 +56,60 @@ body {
   letter-spacing: -.025em;
   color: var(--color-text);
 }
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.header-email {
+  font-size: .875rem;
+  color: var(--color-text-muted);
+}
+
+.logout-form { margin: 0; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Auth pages (login / register)
+   ───────────────────────────────────────────────────────────────────────────── */
+.auth-container {
+  max-width: 400px;
+  margin: 5rem auto;
+  padding: 0 1rem;
+}
+
+.auth-container h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: var(--color-text);
+}
+
+.auth-error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
+  padding: .6rem .9rem;
+  margin-bottom: 1rem;
+  font-size: .9rem;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: .875rem;
+  color: var(--color-text-muted);
+}
+
+.auth-footer a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.auth-footer a:hover { text-decoration: underline; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Card
@@ -72,6 +129,38 @@ body {
   text-transform: uppercase;
   letter-spacing: .06em;
   margin-bottom: 1rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tabs
+   ───────────────────────────────────────────────────────────────────────────── */
+.tab-strip {
+  display: flex;
+  border-bottom: 2px solid var(--color-border);
+  /* bleed to the card's padding edges so the border spans the full width */
+  margin: -1.5rem -1.5rem 1.5rem;
+  padding: 0 1.5rem;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px; /* overlap the strip's bottom border */
+  padding: .65rem 1.1rem;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+
+.tab-btn:hover { color: var(--color-text); }
+
+.tab-btn--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

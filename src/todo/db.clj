@@ -40,11 +40,26 @@
    recurrence_type, recurrence_days, category_id, active, last_done_at")
 
 ;; ─────────────────────────────────────────────────────────────────────────────
+;; User queries
+;; ─────────────────────────────────────────────────────────────────────────────
+
+(defn get-user-by-email [ds email]
+  (jdbc/execute-one!
+   ds ["SELECT id, email, password_hash FROM users WHERE email = ?" email]
+   opts))
+
+(defn create-user! [ds email password-hash]
+  (jdbc/execute-one!
+   ds ["INSERT INTO users (email, password_hash) VALUES (?, ?) RETURNING id, email"
+       email password-hash]
+   opts))
+
+;; ─────────────────────────────────────────────────────────────────────────────
 ;; Todo queries
 ;; ─────────────────────────────────────────────────────────────────────────────
 
 (defn get-all-todos
-  "Returns todos with optional sorting, category filter, and active filter.
+  "Returns todos for user-id with optional sorting, category filter, and active filter.
 
    sort-col      — \"created_at\" (default) or \"due_at\"
    sort-dir      — \"desc\" (default) or \"asc\"
@@ -52,63 +67,62 @@
    show-inactive — when false (default) exclude todos where active = false
 
    Rows with no due_at sort to the bottom when ordering by due date."
-  ([ds] (get-all-todos ds "due_at" "asc" nil false))
-  ([ds sort-col sort-dir category-id show-inactive]
+  ([ds user-id] (get-all-todos ds user-id "due_at" "asc" nil false))
+  ([ds user-id sort-col sort-dir category-id show-inactive]
    (let [col    (get {"created_at" "t.created_at"
                       "due_at"     "t.due_at"} sort-col "t.created_at")
          dir    (get {"asc" "ASC" "desc" "DESC"} sort-dir "DESC")
          nulls  (when (= col "t.due_at") " NULLS LAST")
-         ;; Accumulate WHERE conditions; only the category filter needs a param.
-         conds  (cond-> []
+         ;; Always filter by user; accumulate optional conditions.
+         conds  (cond-> ["t.user_id = ?"]
                   (not show-inactive) (conj "t.active = true")
                   category-id         (conj "t.category_id = ?"))
-         where  (when (seq conds)
-                  (str " WHERE " (str/join " AND " conds)))
+         where  (str " WHERE " (str/join " AND " conds))
          sql    (str todo-select where " ORDER BY " col " " dir nulls)
-         params (cond-> [sql] category-id (conj category-id))]
+         params (cond-> [sql user-id] category-id (conj category-id))]
      (jdbc/execute! ds params opts))))
 
-(defn get-todo-by-id [ds id]
+(defn get-todo-by-id [ds user-id id]
   (jdbc/execute-one!
    ds
-   [(str todo-select " WHERE t.id = ?") id]
+   [(str todo-select " WHERE t.id = ? AND t.user_id = ?") id user-id]
    opts))
 
-(defn create-todo! [ds title description due-at
+(defn create-todo! [ds user-id title description due-at
                     recurrence-type recurrence-days category-id]
   (jdbc/execute-one!
    ds
    [(str "INSERT INTO todos
-            (title, description, due_at, recurrence_type, recurrence_days, category_id)
-          VALUES (?, ?, ?, ?, ?, ?)
+            (user_id, title, description, due_at, recurrence_type, recurrence_days, category_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           RETURNING " todo-returning)
-    title description due-at recurrence-type recurrence-days category-id]
+    user-id title description due-at recurrence-type recurrence-days category-id]
    opts))
 
-(defn update-todo! [ds id title description completed due-at
+(defn update-todo! [ds user-id id title description completed due-at
                     recurrence-type recurrence-days category-id]
   (jdbc/execute-one!
    ds
    [(str "UPDATE todos
           SET title = ?, description = ?, completed = ?, due_at = ?,
               recurrence_type = ?, recurrence_days = ?, category_id = ?
-          WHERE id = ?
+          WHERE id = ? AND user_id = ?
           RETURNING " todo-returning)
     title description completed due-at
-    recurrence-type recurrence-days category-id id]
+    recurrence-type recurrence-days category-id id user-id]
    opts))
 
-(defn toggle-todo! [ds id]
+(defn toggle-todo! [ds user-id id]
   (jdbc/execute-one!
    ds
    [(str "UPDATE todos SET completed = NOT completed
-          WHERE id = ? RETURNING " todo-returning)
-    id]
+          WHERE id = ? AND user_id = ? RETURNING " todo-returning)
+    id user-id]
    opts))
 
-(defn delete-todo! [ds id]
+(defn delete-todo! [ds user-id id]
   (jdbc/execute-one!
-   ds ["DELETE FROM todos WHERE id = ? RETURNING id" id]
+   ds ["DELETE FROM todos WHERE id = ? AND user_id = ? RETURNING id" id user-id]
    opts))
 
 ;; ─────────────────────────────────────────────────────────────────────────────
@@ -127,45 +141,46 @@
       "custom"  (.plusDays   base (int (or recurrence-days 7)))
       base)))
 
-(defn advance-recurring-todo! [ds id]
-  (when-let [todo (get-todo-by-id ds id)]
+(defn advance-recurring-todo! [ds user-id id]
+  (when-let [todo (get-todo-by-id ds user-id id)]
     (let [next-due (calc-next-due (:due_at todo)
                                   (:recurrence_type todo)
                                   (:recurrence_days todo))]
       (jdbc/execute-one!
        ds
        [(str "UPDATE todos SET completed = false, due_at = ?, last_done_at = CURRENT_DATE
-              WHERE id = ? RETURNING " todo-returning)
-        (java.sql.Date/valueOf next-due) id]
+              WHERE id = ? AND user_id = ? RETURNING " todo-returning)
+        (java.sql.Date/valueOf next-due) id user-id]
        opts))))
 
 (defn set-active!
   "Sets the active flag on a todo.  Pass false to pause, true to resume.
    Returns the updated row, or nil if the id does not exist."
-  [ds id active]
+  [ds user-id id active]
   (jdbc/execute-one!
    ds
-   [(str "UPDATE todos SET active = ? WHERE id = ? RETURNING " todo-returning)
-    active id]
+   [(str "UPDATE todos SET active = ? WHERE id = ? AND user_id = ? RETURNING " todo-returning)
+    active id user-id]
    opts))
 
 ;; ─────────────────────────────────────────────────────────────────────────────
 ;; Category queries
 ;; ─────────────────────────────────────────────────────────────────────────────
 
-(defn get-all-categories [ds]
+(defn get-all-categories [ds user-id]
   (jdbc/execute!
-   ds ["SELECT id, name, created_at FROM categories ORDER BY name"]
+   ds ["SELECT id, name, created_at FROM categories WHERE user_id = ? ORDER BY name" user-id]
    opts))
 
-(defn create-category! [ds name]
+(defn create-category! [ds user-id name]
   (jdbc/execute-one!
-   ds ["INSERT INTO categories (name) VALUES (?) RETURNING id, name, created_at" name]
+   ds ["INSERT INTO categories (user_id, name) VALUES (?, ?) RETURNING id, name, created_at"
+       user-id name]
    opts))
 
-(defn delete-category! [ds id]
+(defn delete-category! [ds user-id id]
   ;; The FK on todos.category_id is ON DELETE SET NULL, so PostgreSQL
   ;; automatically un-assigns this category from any todos before deleting.
   (jdbc/execute-one!
-   ds ["DELETE FROM categories WHERE id = ? RETURNING id" id]
+   ds ["DELETE FROM categories WHERE id = ? AND user_id = ? RETURNING id" id user-id]
    opts))

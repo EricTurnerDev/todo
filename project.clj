@@ -40,7 +40,11 @@
 
    ;; ── Migrations ────────────────────────────────────────────────────────────
    ;; Migratus runs plain SQL migration files from the classpath.
-   [migratus "1.5.7"]]
+   [migratus "1.5.7"]
+
+   ;; ── Authentication ────────────────────────────────────────────────────────
+   ;; buddy-hashers provides bcrypt password hashing.
+   [buddy/buddy-hashers "1.8.1"]]
 
   ;; ^:skip-aot means we don't AOT compile during `lein run` (faster dev loop).
   ;; The :uberjar profile overrides this with :aot :all for the production JAR.

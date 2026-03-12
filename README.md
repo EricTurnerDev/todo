@@ -4,6 +4,7 @@ A full-stack to-do application built with Clojure and PostgreSQL. Runs entirely 
 
 ## Features
 
+- **Multi-user** — register with an email and password; each user's data is fully isolated
 - **Create, edit, and delete** to-dos with an optional description and due date
 - **Categories** — define your own, color-coded automatically
 - **Recurring to-dos** — daily, weekly, monthly, yearly, or every N days; checking one off advances its due date in place instead of creating a new row
@@ -12,6 +13,7 @@ A full-stack to-do application built with Clojure and PostgreSQL. Runs entirely 
 - **Sort** by date added or due date
 - **Filter** by category
 - **Show / hide paused** items
+- **Persistent UI state** — sort order, active category filter, and "show paused" are remembered per user across sessions
 
 ## Tech stack
 
@@ -21,6 +23,7 @@ A full-stack to-do application built with Clojure and PostgreSQL. Runs entirely 
 | Routing | [Compojure](https://github.com/weavejester/compojure) |
 | HTML templates | [Hiccup](https://github.com/weavejester/hiccup) |
 | JSON | [Cheshire](https://github.com/dakrone/cheshire) |
+| Authentication | [buddy-hashers](https://funcool.github.io/buddy-hashers/latest/) (bcrypt) + Ring sessions |
 | Database | PostgreSQL 16 |
 | JDBC | [next.jdbc](https://github.com/seancorfield/next-jdbc) + HikariCP |
 | Migrations | [Migratus](https://github.com/yogthos/migratus) |
@@ -40,7 +43,7 @@ That's it.
 docker compose up --build
 ```
 
-The first run downloads base images and compiles a fat JAR — subsequent starts are fast. Open [http://localhost:3000](http://localhost:3000).
+The first run downloads base images and compiles a fat JAR — subsequent starts are fast. Open [http://localhost:3000](http://localhost:3000) and register an account.
 
 **To wipe the database and start fresh** (re-runs all migrations):
 
@@ -75,21 +78,41 @@ Or point DBeaver / TablePlus / DataGrip at `localhost:5433`, database `todo`, us
 │   │   ├── *-add-recurrence.up.sql
 │   │   ├── *-add-categories.up.sql
 │   │   ├── *-add-active.up.sql
-│   │   └── *-add-last-done-at.up.sql
+│   │   ├── *-add-last-done-at.up.sql
+│   │   ├── *-create-users.up.sql
+│   │   ├── *-add-user-id-categories.up.sql
+│   │   └── *-add-user-id-todos.up.sql
 │   └── public/
 │       ├── app.js                    # Frontend — vanilla JS, no build step
 │       └── style.css
 └── src/todo/
     ├── core.clj                      # Entry point: wait for DB, run migrations, start Jetty
+    ├── auth.clj                      # Register / login / logout handlers + auth middleware
     ├── db.clj                        # All SQL queries (next.jdbc + HikariCP)
     ├── handlers.clj                  # HTTP request handlers
     ├── routes.clj                    # Compojure route table + middleware stack
-    └── views.clj                     # Hiccup HTML page template
+    └── views.clj                     # Hiccup HTML page templates
 ```
+
+## Authentication
+
+The app uses **server-side sessions** (Ring's cookie-backed session store) and **bcrypt** password hashing via buddy-hashers.
+
+| Route | Description |
+|-------|-------------|
+| `GET /register` | Registration form |
+| `POST /auth/register` | Create account; redirects to app on success |
+| `GET /login` | Login form |
+| `POST /auth/login` | Authenticate; redirects to app on success |
+| `POST /auth/logout` | Clear session; redirects to login |
+
+All `/api/*` routes return `401` if the request has no valid session. All other protected routes redirect to `/login`.
+
+Passwords must be at least 8 characters. Email addresses are validated to require a non-empty local part, `@`, and a domain with a TLD (e.g. `user@example.com`).
 
 ## API
 
-All endpoints return and accept `application/json`.
+All endpoints require an authenticated session and return/accept `application/json`. Each user's todos and categories are fully isolated — queries are always scoped to the authenticated user.
 
 ### Todos
 
@@ -120,22 +143,32 @@ All endpoints return and accept `application/json`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/categories` | List all categories |
+| `GET` | `/api/categories` | List the current user's categories |
 | `POST` | `/api/categories` | Create a category (`{name}`) |
 | `DELETE` | `/api/categories/:id` | Delete a category (todos become uncategorized) |
 
 ## Database schema
 
 ```sql
+CREATE TABLE users (
+  id            SERIAL PRIMARY KEY,
+  email         VARCHAR(255) NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE categories (
   id         SERIAL PRIMARY KEY,
-  name       TEXT NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       VARCHAR(100) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (name, user_id)
 );
 
 CREATE TABLE todos (
   id               SERIAL PRIMARY KEY,
-  title            TEXT NOT NULL,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title            VARCHAR(255) NOT NULL,
   description      TEXT,
   completed        BOOLEAN NOT NULL DEFAULT FALSE,
   due_at           DATE,

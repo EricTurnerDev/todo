@@ -10,6 +10,27 @@ let activeCategoryId = null;   // null = "All"
 let showInactive     = false;  // whether to include paused recurring todos
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Preferences — persisted in localStorage, keyed per user
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PREFS_KEY = `todo-prefs-${document.body.dataset.userId}`;
+
+function savePrefs() {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({
+      showInactive,
+      sortValue:        document.getElementById("sort-select").value,
+      activeCategoryId,
+    }));
+  } catch { /* storage unavailable */ }
+}
+
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; }
+  catch { return {}; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Category colors  (8 distinct palette entries, assigned by id % 8)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -32,6 +53,15 @@ function catStyle(categoryId) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Redirect to login on session expiry; returns true if the caller should abort.
+function handleUnauthorized(res) {
+  if (res && res.status === 401) {
+    window.location.href = "/login";
+    return true;
+  }
+  return false;
+}
 
 function escapeHtml(str) {
   const d = document.createElement("div");
@@ -76,7 +106,13 @@ function bindRecurrenceSelect(prefix) {
 async function loadCategories() {
   try {
     const res = await fetch("/api/categories");
+    if (handleUnauthorized(res)) return;
     categories = await res.json();
+    // Reset the saved filter if the category no longer exists.
+    if (activeCategoryId !== null && !categories.find((c) => c.id === activeCategoryId)) {
+      activeCategoryId = null;
+      savePrefs();
+    }
     renderCategoryChips();
     renderCategoryFilter();
     populateCategorySelects();
@@ -142,6 +178,7 @@ function populateCategorySelects() {
 
 function setFilter(categoryId) {
   activeCategoryId = categoryId;
+  savePrefs();
   renderCategoryFilter();
   loadTodos();
 }
@@ -159,6 +196,7 @@ document.getElementById("add-category-form").addEventListener("submit", async (e
     body:    JSON.stringify({ name }),
   });
 
+  if (handleUnauthorized(res)) return;
   if (res.ok) {
     input.value = "";
     await loadCategories();   // refresh chips, filter bar, and selects
@@ -173,6 +211,7 @@ async function deleteCategory(id) {
   if (!confirm("Delete this category? Todos in it will become uncategorized.")) return;
 
   const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+  if (handleUnauthorized(res)) return;
   if (res.ok) {
     // If the deleted category was the active filter, reset to "All"
     if (activeCategoryId === id) activeCategoryId = null;
@@ -198,6 +237,7 @@ async function loadTodos() {
 
   try {
     const res = await fetch(url);
+    if (handleUnauthorized(res)) return;
     if (!res.ok) throw new Error("Server returned " + res.status);
     todos = await res.json();
     renderTodos();
@@ -293,6 +333,7 @@ async function setActive(id, active) {
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({ active }),
   });
+  if (handleUnauthorized(res)) return;
   if (res.ok) loadTodos();
   else showError("Could not update to-do");
 }
@@ -301,10 +342,14 @@ async function setActive(id, active) {
 // Sort + show-inactive toggle
 // ─────────────────────────────────────────────────────────────────────────────
 
-document.getElementById("sort-select").addEventListener("change", loadTodos);
+document.getElementById("sort-select").addEventListener("change", () => {
+  savePrefs();
+  loadTodos();
+});
 
 document.getElementById("show-inactive").addEventListener("change", (e) => {
   showInactive = e.target.checked;
+  savePrefs();
   loadTodos();
 });
 
@@ -332,6 +377,7 @@ document.getElementById("add-form").addEventListener("submit", async (e) => {
     body: JSON.stringify(body),
   });
 
+  if (handleUnauthorized(res)) return;
   if (res.ok) {
     titleEl.value = "";
     document.getElementById("new-description").value = "";
@@ -353,6 +399,7 @@ document.getElementById("add-form").addEventListener("submit", async (e) => {
 
 async function toggleTodo(id) {
   const res = await fetch(`/api/todos/${id}/toggle`, { method: "PATCH" });
+  if (handleUnauthorized(res)) return;
   loadTodos();
   if (!res.ok) showError("Could not update to-do");
 }
@@ -408,6 +455,7 @@ document.getElementById("save-edit").addEventListener("click", async () => {
     body: JSON.stringify(body),
   });
 
+  if (handleUnauthorized(res)) return;
   if (res.ok) { closeEditModal(); loadTodos(); }
   else { const err = await res.json(); showError(err.error || "Could not update to-do"); }
 });
@@ -425,9 +473,23 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeEditM
 async function deleteTodo(id) {
   if (!confirm("Delete this to-do? This cannot be undone.")) return;
   const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
+  if (handleUnauthorized(res)) return;
   if (res.ok) loadTodos();
   else showError("Could not delete to-do");
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tabs
+// ─────────────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("tab-btn--active"));
+    document.querySelectorAll(".tab-panel").forEach((p) => { p.style.display = "none"; });
+    btn.classList.add("tab-btn--active");
+    document.getElementById(btn.dataset.tab).style.display = "";
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bootstrap
@@ -437,6 +499,19 @@ bindRecurrenceSelect("new-");
 bindRecurrenceSelect("edit-");
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Restore saved preferences before the first data load.
+  const prefs = loadPrefs();
+  if (prefs.sortValue) {
+    document.getElementById("sort-select").value = prefs.sortValue;
+  }
+  if (prefs.showInactive) {
+    showInactive = true;
+    document.getElementById("show-inactive").checked = true;
+  }
+  if (prefs.activeCategoryId !== undefined && prefs.activeCategoryId !== null) {
+    activeCategoryId = prefs.activeCategoryId;
+  }
+
   await loadCategories();   // must finish before loadTodos so selects are ready
   loadTodos();
 });

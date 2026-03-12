@@ -2,6 +2,17 @@
   "Hiccup HTML templates."
   (:require [hiccup.page :refer [html5 include-css include-js]]))
 
+;; ─────────────────────────────────────────────────────────────────────────────
+;; Shared fragments
+;; ─────────────────────────────────────────────────────────────────────────────
+
+(defn- page-head [title]
+  [:head
+   [:meta {:charset "UTF-8"}]
+   [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
+   [:title title]
+   (include-css "/style.css")])
+
 (defn- recurrence-select [id-prefix]
   ;; Wrap in a single :div so Hiccup always receives one element — returning
   ;; (list ...) from a function causes Hiccup 1.x to fall back to str, which
@@ -32,51 +43,113 @@
    [:select {:id id}
     [:option {:value ""} "No category"]]])
 
-(defn index-page []
+;; ─────────────────────────────────────────────────────────────────────────────
+;; Auth pages
+;; ─────────────────────────────────────────────────────────────────────────────
+
+(defn login-page [error]
+  (html5 {:lang "en"}
+    (page-head "Log In — To-Do App")
+    [:body
+     [:div.auth-container
+      [:h1 "To-Do App"]
+      [:div.card
+       [:h2 "Log In"]
+       (when error
+         [:p.auth-error error])
+       [:form {:method "POST" :action "/auth/login" :novalidate true}
+        [:div.form-group
+         [:label {:for "email"} "Email"]
+         [:input#email {:type "email" :name "email" :required true
+                        :autocomplete "email" :placeholder "you@example.com"}]]
+        [:div.form-group
+         [:label {:for "password"} "Password"]
+         [:input#password {:type "password" :name "password" :required true
+                           :autocomplete "current-password"}]]
+        [:button.btn.btn-primary {:type "submit"} "Log In"]]
+       [:p.auth-footer
+        "Don't have an account? "
+        [:a {:href "/register"} "Register"]]]]]))
+
+(defn register-page [error]
+  (html5 {:lang "en"}
+    (page-head "Register — To-Do App")
+    [:body
+     [:div.auth-container
+      [:h1 "To-Do App"]
+      [:div.card
+       [:h2 "Create Account"]
+       (when error
+         [:p.auth-error error])
+       [:form {:method "POST" :action "/auth/register" :novalidate true}
+        [:div.form-group
+         [:label {:for "email"} "Email"]
+         [:input#email {:type "email" :name "email" :required true
+                        :autocomplete "email" :placeholder "you@example.com"}]]
+        [:div.form-group
+         [:label {:for "password"} "Password"]
+         [:input#password {:type "password" :name "password" :required true
+                           :autocomplete "new-password"
+                           :placeholder "At least 8 characters"}]]
+        [:div.form-group
+         [:label {:for "password2"} "Confirm Password"]
+         [:input#password2 {:type "password" :name "password2" :required true
+                             :autocomplete "new-password"}]]
+        [:button.btn.btn-primary {:type "submit"} "Create Account"]]
+       [:p.auth-footer
+        "Already have an account? "
+        [:a {:href "/login"} "Log In"]]]]]))
+
+;; ─────────────────────────────────────────────────────────────────────────────
+;; Main app page
+;; ─────────────────────────────────────────────────────────────────────────────
+
+(defn index-page [user-id user-email]
   (html5 {:lang "en"}
 
-    [:head
-     [:meta {:charset "UTF-8"}]
-     [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
-     [:title "To-Do App"]
-     (include-css "/style.css")]
+    (page-head "To-Do App")
 
-    [:body
+    [:body {:data-user-id user-id}
      [:div#app.container
 
-      [:header.page-header [:h1 "To-Do List"]]
+      [:header.page-header
+       [:h1 "To-Do List"]
+       [:div.header-user
+        [:span.header-email user-email]
+        [:form.logout-form {:method "POST" :action "/auth/logout"}
+         [:button.btn.btn-sm {:type "submit"} "Log Out"]]]]
 
-      ;; ── Add new to-do ─────────────────────────────────────────────────────
+      ;; ── Tabbed card: Add To-Do / Categories ──────────────────────────────
       [:section.card
-       [:h2 "Add a To-Do"]
-       [:form#add-form {:novalidate true}
-        [:div.form-group
-         [:label {:for "new-title"} "Title"]
-         [:input#new-title {:type "text" :placeholder "What needs to be done?"
-                            :autocomplete "off" :required true}]]
-        [:div.form-group
-         [:label {:for "new-description"}
-          "Description " [:span.optional "(optional)"]]
-         [:textarea#new-description {:placeholder "Any extra details…" :rows 2}]]
-        ;; Category sits on its own row so the label+select have room
-        (category-select "new-category")
-        [:div.form-row
-         [:div.form-group
-          [:label {:for "new-due-at"} "Due date " [:span.optional "(optional)"]]
-          [:input#new-due-at {:type "date"}]]
-         (recurrence-select "new-")]
-        [:button.btn.btn-primary {:type "submit"} "Add To-Do"]]]
+       [:div.tab-strip
+        [:button.tab-btn.tab-btn--active {:data-tab "tab-add"} "Add a To-Do"]
+        [:button.tab-btn {:data-tab "tab-categories"} "Categories"]]
 
-      ;; ── Categories management ─────────────────────────────────────────────
-      ;; app.js renders the chips and wires up the add form; renderCategoryChips() fills the chip list.
-      [:section#categories-card.card
-       [:h2 "Categories"]
-       [:div#category-chips.category-chips]
-       [:form#add-category-form {:novalidate true}
-        [:div.inline-group
-         [:input#new-category-name
-          {:type "text" :placeholder "New category name…" :autocomplete "off"}]
-         [:button.btn {:type "submit"} "Add"]]]]
+       [:div#tab-add.tab-panel
+        [:form#add-form {:novalidate true}
+         [:div.form-group
+          [:label {:for "new-title"} "Title"]
+          [:input#new-title {:type "text" :placeholder "What needs to be done?"
+                             :autocomplete "off" :required true}]]
+         [:div.form-group
+          [:label {:for "new-description"}
+           "Description " [:span.optional "(optional)"]]
+          [:textarea#new-description {:placeholder "Any extra details…" :rows 2}]]
+         (category-select "new-category")
+         [:div.form-row
+          [:div.form-group
+           [:label {:for "new-due-at"} "Due date " [:span.optional "(optional)"]]
+           [:input#new-due-at {:type "date"}]]
+          (recurrence-select "new-")]
+         [:button.btn.btn-primary {:type "submit"} "Add To-Do"]]]
+
+       [:div#tab-categories.tab-panel {:style "display:none"}
+        [:div#category-chips.category-chips]
+        [:form#add-category-form {:novalidate true}
+         [:div.inline-group
+          [:input#new-category-name
+           {:type "text" :placeholder "New category name…" :autocomplete "off"}]
+          [:button.btn {:type "submit"} "Add"]]]]]
 
       ;; ── List header + category filter bar ────────────────────────────────
       [:div.list-header

@@ -33,12 +33,14 @@
     (cond (integer? v) (int v)
           (string?  v) (when (seq (str/trim v)) (Integer/parseInt (str/trim v))))))
 
+(defn- uid [req] (:user-id req))
+
 ;; ─────────────────────────────────────────────────────────────────────────────
 ;; Page
 ;; ─────────────────────────────────────────────────────────────────────────────
 
-(defn index-page [_req]
-  (-> (views/index-page)
+(defn index-page [req]
+  (-> (views/index-page (uid req) (get-in req [:session :user-email]))
       (response/response)
       (response/content-type "text/html; charset=utf-8")))
 
@@ -54,11 +56,11 @@
         sort-dir      (get p :order "asc")
         category-id   (parse-category-id (get p :category_id))
         show-inactive (= "true" (get p :show_inactive))]
-    (json-resp 200 (db/get-all-todos ds sort-col sort-dir category-id show-inactive))))
+    (json-resp 200 (db/get-all-todos ds (uid req) sort-col sort-dir category-id show-inactive))))
 
 (defn get-todo [ds req]
   (let [id (Integer/parseInt (get-in req [:params :id]))]
-    (if-let [todo (db/get-todo-by-id ds id)]
+    (if-let [todo (db/get-todo-by-id ds (uid req) id)]
       (json-resp 200 todo)
       (json-resp 404 {:error "Todo not found"}))))
 
@@ -72,7 +74,7 @@
         cat-id        (parse-category-id (:category_id body))]
     (if-not title*
       (json-resp 400 {:error "Title is required"})
-      (json-resp 201 (db/create-todo! ds title*
+      (json-resp 201 (db/create-todo! ds (uid req) title*
                                       (clean-str (:description body))
                                       (parse-due-at (:due_at body))
                                       rtype rdays cat-id)))))
@@ -87,10 +89,10 @@
         [rtype rdays] (parse-recurrence body)
         cat-id        (parse-category-id (:category_id body))]
     (cond
-      (not title*)              (json-resp 400 {:error "Title is required"})
-      (not (db/get-todo-by-id ds id)) (json-resp 404 {:error "Todo not found"})
+      (not title*)                            (json-resp 400 {:error "Title is required"})
+      (not (db/get-todo-by-id ds (uid req) id)) (json-resp 404 {:error "Todo not found"})
       :else
-      (json-resp 200 (db/update-todo! ds id title*
+      (json-resp 200 (db/update-todo! ds (uid req) id title*
                                       (clean-str (:description body))
                                       (boolean (:completed body))
                                       (parse-due-at (:due_at body))
@@ -100,16 +102,16 @@
   "PATCH /api/todos/:id/toggle — for recurring todos, advances due date instead."
   [ds req]
   (let [id   (Integer/parseInt (get-in req [:params :id]))
-        todo (db/get-todo-by-id ds id)]
+        todo (db/get-todo-by-id ds (uid req) id)]
     (cond
       (nil? todo)
       (json-resp 404 {:error "Todo not found"})
 
       (and (not (:completed todo)) (:recurrence_type todo))
-      (json-resp 200 (db/advance-recurring-todo! ds id))
+      (json-resp 200 (db/advance-recurring-todo! ds (uid req) id))
 
       :else
-      (json-resp 200 (db/toggle-todo! ds id)))))
+      (json-resp 200 (db/toggle-todo! ds (uid req) id)))))
 
 (defn set-todo-active
   "PATCH /api/todos/:id/active
@@ -118,13 +120,13 @@
   [ds req]
   (let [id     (Integer/parseInt (get-in req [:params :id]))
         active (boolean (:active (:body req)))]
-    (if-let [todo (db/set-active! ds id active)]
+    (if-let [todo (db/set-active! ds (uid req) id active)]
       (json-resp 200 todo)
       (json-resp 404 {:error "Todo not found"}))))
 
 (defn delete-todo [ds req]
   (let [id (Integer/parseInt (get-in req [:params :id]))]
-    (if (db/delete-todo! ds id)
+    (if (db/delete-todo! ds (uid req) id)
       (json-resp 200 {:message "Deleted successfully"})
       (json-resp 404 {:error "Todo not found"}))))
 
@@ -132,8 +134,8 @@
 ;; Category API
 ;; ─────────────────────────────────────────────────────────────────────────────
 
-(defn list-categories [ds _req]
-  (json-resp 200 (db/get-all-categories ds)))
+(defn list-categories [ds req]
+  (json-resp 200 (db/get-all-categories ds (uid req))))
 
 (defn create-category
   "POST /api/categories  Body: {name}"
@@ -142,13 +144,13 @@
     (if-not name*
       (json-resp 400 {:error "Name is required"})
       (try
-        (json-resp 201 (db/create-category! ds name*))
+        (json-resp 201 (db/create-category! ds (uid req) name*))
         (catch Exception _
-          ;; PostgreSQL unique constraint violation on categories.name
+          ;; PostgreSQL unique constraint violation on (categories.name, categories.user_id)
           (json-resp 409 {:error (str "Category \"" name* "\" already exists")}))))))
 
 (defn delete-category [ds req]
   (let [id (Integer/parseInt (get-in req [:params :id]))]
-    (if (db/delete-category! ds id)
+    (if (db/delete-category! ds (uid req) id)
       (json-resp 200 {:message "Deleted"})
       (json-resp 404 {:error "Category not found"}))))
