@@ -458,7 +458,7 @@ function renderTodoItem(todo) {
       <label class="todo-check">
         <input type="checkbox" ${todo.completed ? "checked" : ""}
                ${!todo.active ? "disabled" : ""}
-               onchange="toggleTodo(${todo.id})">
+               onchange="onTodoCheck(${todo.id}, this)">
       </label>
       <div class="todo-body">
         <div class="todo-title">${escapeHtml(todo.title)}</div>
@@ -548,8 +548,69 @@ document.getElementById("add-form").addEventListener("submit", async (e) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Confetti burst — fired when a to-do is checked off
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CONFETTI_COLORS = ["#4f46e5","#7c3aed","#db2777","#ea580c","#16a34a","#d97706","#0284c7","#dc2626"];
+
+function triggerConfetti(el) {
+  const rect = el.getBoundingClientRect();
+  const cx   = rect.left + rect.width  / 2;
+  const cy   = rect.top  + rect.height / 2;
+
+  // Host sits in fixed coords so no scroll adjustment needed.
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:visible;";
+  document.body.appendChild(host);
+
+  const COUNT     = 22;
+  const particles = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const p     = document.createElement("div");
+    const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    const size  = 5 + Math.random() * 5;
+    // Spread evenly around the circle with a little jitter.
+    const angle = (i / COUNT) * 2 * Math.PI + (Math.random() - 0.5) * 0.5;
+    const dist  = 30 + Math.random() * 38;
+    const dx    = Math.cos(angle) * dist;
+    const dy    = Math.sin(angle) * dist;
+    const rot   = Math.random() * 540 - 270;
+
+    p.style.cssText = [
+      "position:absolute",
+      `left:${cx}px`, `top:${cy}px`,
+      `width:${size}px`, `height:${size}px`,
+      `background:${color}`,
+      `border-radius:${Math.random() > 0.4 ? "50%" : "2px"}`,
+      "transform:translate(-50%,-50%)",
+      "opacity:1",
+      "transition:transform .55s cubic-bezier(.2,.8,.4,1),opacity .55s ease-out",
+    ].join(";");
+
+    host.appendChild(p);
+    particles.push({ el: p, dx, dy, rot });
+  }
+
+  // Double-rAF: let the browser paint the start state before transitioning.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    particles.forEach(({ el: p, dx, dy, rot }) => {
+      p.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(${rot}deg)`;
+      p.style.opacity   = "0";
+    });
+  }));
+
+  setTimeout(() => host.remove(), 650);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Toggle
 // ─────────────────────────────────────────────────────────────────────────────
+
+function onTodoCheck(id, checkbox) {
+  if (checkbox.checked) triggerConfetti(checkbox);
+  toggleTodo(id);
+}
 
 async function toggleTodo(id) {
   const res = await fetch(`/api/todos/${id}/toggle`, { method: "PATCH" });
