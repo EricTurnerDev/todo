@@ -49,14 +49,15 @@
 ;; ─────────────────────────────────────────────────────────────────────────────
 
 (defn list-todos
-  "GET /api/todos?sort=created_at|due_at&order=asc|desc&category_id=N&show_inactive=true"
+  "GET /api/todos?sort=created_at|due_at&order=asc|desc&category_id=N&show_inactive=true&show_completed=true"
   [ds req]
-  (let [p             (:params req)
-        sort-col      (get p :sort  "due_at")
-        sort-dir      (get p :order "asc")
-        category-id   (parse-category-id (get p :category_id))
-        show-inactive (= "true" (get p :show_inactive))]
-    (json-resp 200 (db/get-all-todos ds (uid req) sort-col sort-dir category-id show-inactive))))
+  (let [p              (:params req)
+        sort-col       (get p :sort  "due_at")
+        sort-dir       (get p :order "asc")
+        category-id    (parse-category-id (get p :category_id))
+        show-inactive  (= "true" (get p :show_inactive))
+        show-completed (= "true" (get p :show_completed))]
+    (json-resp 200 (db/get-all-todos ds (uid req) sort-col sort-dir category-id show-inactive show-completed))))
 
 (defn get-todo [ds req]
   (let [id (Integer/parseInt (get-in req [:params :id]))]

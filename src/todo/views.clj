@@ -167,6 +167,9 @@
          [:label.show-inactive-label
           [:input#show-inactive {:type "checkbox"}]
           "Show paused"]
+         [:label.show-inactive-label
+          [:input#show-completed {:type "checkbox"}]
+          "Show completed"]
          [:label.sort-label
           [:span "Sort by"]
           [:select#sort-select

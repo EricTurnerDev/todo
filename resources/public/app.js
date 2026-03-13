@@ -8,6 +8,7 @@ let todos      = [];   // mirror of server todo list
 let categories = [];   // mirror of server category list
 let activeCategoryId = null;   // null = "All"
 let showInactive     = false;  // whether to include paused recurring todos
+let showCompleted    = false;  // whether to include completed todos
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Preferences — persisted in localStorage, keyed per user
@@ -19,6 +20,7 @@ function savePrefs() {
   try {
     localStorage.setItem(PREFS_KEY, JSON.stringify({
       showInactive,
+      showCompleted,
       sortValue:        document.getElementById("sort-select").value,
       activeCategoryId,
     }));
@@ -387,6 +389,7 @@ async function loadTodos() {
   let url = `/api/todos?sort=${col}&order=${sortDir}`;
   if (activeCategoryId !== null) url += `&category_id=${activeCategoryId}`;
   if (showInactive)              url += `&show_inactive=true`;
+  if (showCompleted)             url += `&show_completed=true`;
 
   try {
     const res = await fetch(url);
@@ -503,6 +506,12 @@ document.getElementById("sort-select").addEventListener("change", () => {
 
 document.getElementById("show-inactive").addEventListener("change", (e) => {
   showInactive = e.target.checked;
+  savePrefs();
+  loadTodos();
+});
+
+document.getElementById("show-completed").addEventListener("change", (e) => {
+  showCompleted = e.target.checked;
   savePrefs();
   loadTodos();
 });
@@ -1213,6 +1222,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (prefs.showInactive) {
     showInactive = true;
     document.getElementById("show-inactive").checked = true;
+  }
+  if (prefs.showCompleted) {
+    showCompleted = true;
+    document.getElementById("show-completed").checked = true;
   }
   if (prefs.activeCategoryId !== undefined && prefs.activeCategoryId !== null) {
     activeCategoryId = prefs.activeCategoryId;

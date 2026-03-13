@@ -61,24 +61,26 @@
 ;; ─────────────────────────────────────────────────────────────────────────────
 
 (defn get-all-todos
-  "Returns todos for user-id with optional sorting, category filter, and active filter.
+  "Returns todos for user-id with optional sorting, category filter, and active/completed filters.
 
-   sort-col      — \"created_at\" (default) or \"due_at\"
-   sort-dir      — \"desc\" (default) or \"asc\"
-   category-id   — integer or nil; nil returns all categories
-   show-inactive — when false (default) exclude todos where active = false
+   sort-col       — \"created_at\" (default) or \"due_at\"
+   sort-dir       — \"desc\" (default) or \"asc\"
+   category-id    — integer or nil; nil returns all categories
+   show-inactive  — when false (default) exclude todos where active = false
+   show-completed — when false (default) exclude todos where completed = true
 
    Rows with no due_at sort to the bottom when ordering by due date."
-  ([ds user-id] (get-all-todos ds user-id "due_at" "asc" nil false))
-  ([ds user-id sort-col sort-dir category-id show-inactive]
+  ([ds user-id] (get-all-todos ds user-id "due_at" "asc" nil false false))
+  ([ds user-id sort-col sort-dir category-id show-inactive show-completed]
    (let [col    (get {"created_at" "t.created_at"
                       "due_at"     "t.due_at"} sort-col "t.created_at")
          dir    (get {"asc" "ASC" "desc" "DESC"} sort-dir "DESC")
          nulls  (when (= col "t.due_at") " NULLS LAST")
          ;; Always filter by user; accumulate optional conditions.
          conds  (cond-> ["t.user_id = ?"]
-                  (not show-inactive) (conj "t.active = true")
-                  category-id         (conj "t.category_id = ?"))
+                  (not show-inactive)  (conj "t.active = true")
+                  (not show-completed) (conj "t.completed = false")
+                  category-id          (conj "t.category_id = ?"))
          where  (str " WHERE " (str/join " AND " conds))
          sql    (str todo-select where " ORDER BY " col " " dir nulls)
          params (cond-> [sql user-id] category-id (conj category-id))]
